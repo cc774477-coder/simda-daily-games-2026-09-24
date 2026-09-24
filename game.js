@@ -15,11 +15,11 @@
     heat: {
       title: "열핵 배달", eyebrow: "02 / RISK MAKES POWER", color: "#ffac73", shadow: "#74494a",
       intro: "열핵이 자동 발사합니다. 열을 모을수록 배출이 강해지고, 과열되면 발사가 멈춥니다.",
-      action: "열 배출", ability: "열 배출", tip: "열 12%부터 Space로 배출합니다. 70% 이상을 모아 배출하면 생명도 1 회복합니다.",
+      action: "열 배출", ability: "열 배출", tip: "열 12%부터 Space로 배출합니다. 55%부터 이동이 느려지지만, 70% 이상에서 배출하면 생명 1을 회복합니다.",
       upgrades: [
-        ["강한 열파", "자동 탄환 피해 +1", "shotDamage"],
+        ["강한 열파", "탄환 피해 +1 · 발사 열 +3", "shotDamage"],
         ["넓은 배출", "배출 반경 +28", "ventRadius"],
-        ["안정 냉각", "자연 냉각 +5/초", "cooling"],
+        ["안정 냉각", "자연 냉각 +3/초", "cooling"],
       ],
     },
     echo: {
@@ -91,6 +91,7 @@
     $("primaryButton").textContent = button;
     $("overlayHint").textContent = hint;
     $("overlay").hidden = false;
+    $("liveStatus").textContent = `${title}. ${text}`;
     $("primaryButton").focus();
   }
   showOverlay(mode.eyebrow, mode.title, `${mode.intro}\n${mode.tip}`, "시작하기", "이동: WASD/방향키/화면 클릭 · 능력: Space · 터치 버튼 지원");
@@ -107,13 +108,14 @@
       status: "play", p, t: 0, kills: 0, xp: 0, xpNeed: 5, level: 1,
       enemies: [], shots: [], drops: [], nodes: modeKey === "signal" ? [{ x: p.x - 48 * scale, y: p.y, life: 35 }] : [],
       trail: [], effects: [], moveTarget: null, spawnIn: 0.6, fireIn: 0.5, abilityCd: 0, heat: 0, overheated: false,
-      trailIn: 0, notice: "", noticeTime: 0,
+      trailIn: 0, notice: "", noticeTime: 0, hotWarning: false,
       upgrade: { lineDamage: 2, lineWidth: 12, shotDamage: 2, ventRadius: 105, cooling: 10, echoDamage: 1, echoLife: 3.1, abilityRate: 0 },
     };
   }
   function startGame() {
     state = makeState(); keys.clear();
     $("overlay").hidden = true; $("upgradePanel").hidden = true;
+    $("liveStatus").textContent = `${mode.title} 시작. 60초 동안 생존하세요.`;
     canvas.focus();
     lastFrame = performance.now(); beep(750, 0.08);
   }
@@ -122,7 +124,10 @@
     else startGame();
   });
 
-  function announce(message, seconds = 1.4) { state.notice = message; state.noticeTime = seconds; }
+  function announce(message, seconds = 1.4) {
+    state.notice = message; state.noticeTime = seconds;
+    $("liveStatus").textContent = `${Math.ceil(60 - state.t)}초 남음. ${message}`;
+  }
   function doAbility() {
     if (!state || state.status !== "play") return;
     const s = state, p = s.p;
@@ -160,7 +165,7 @@
     if (key === "lineDamage" || key === "shotDamage" || key === "echoDamage") s.upgrade[key] += 1;
     else if (key === "lineWidth") s.upgrade[key] += 6;
     else if (key === "ventRadius") s.upgrade[key] += 28;
-    else if (key === "cooling") s.upgrade[key] += 5;
+    else if (key === "cooling") s.upgrade[key] += 3;
     else if (key === "echoLife") s.upgrade[key] += 0.7;
     else if (key === "abilityRate") s.upgrade[key] += 0.45;
     s.status = "play"; $("upgradePanel").hidden = true; canvas.focus(); lastFrame = performance.now();
@@ -179,6 +184,7 @@
       $("upgradeChoices").append(button);
     });
     $("upgradePanel").hidden = false;
+    $("liveStatus").textContent = `레벨 ${s.level}. 다음 성장을 선택하세요. 숫자 1부터 3까지 또는 버튼을 누르세요.`;
     $("upgradeChoices").querySelector("button")?.focus();
     beep(940, 0.12);
   }
@@ -202,7 +208,7 @@
     if (e.hp <= 0) {
       e.dead = true; state.kills++;
       state.drops.push({ x: e.x, y: e.y, r: 5 * scale });
-      if (state.kills % 8 === 0 && state.p.hp < state.p.maxHp) {
+      if (state.kills % (modeKey === "heat" ? 16 : 8) === 0 && state.p.hp < state.p.maxHp) {
         state.p.hp++;
         announce("생명 1 회복", 1.1);
       }
@@ -253,7 +259,8 @@
     const length = Math.hypot(x, y) || 1;
     if (x || y) {
       p.dx = x / length; p.dy = y / length;
-      const speed = 230 * scale;
+      const heatSlow = modeKey === "heat" ? Math.max(0, s.heat - 55) / 45 * 0.3 : 0;
+      const speed = 230 * scale * (1 - heatSlow);
       p.x = clamp(p.x + p.dx * speed * dt, 16 * scale, W - 16 * scale);
       p.y = clamp(p.y + p.dy * speed * dt, 16 * scale, H - 16 * scale);
     }
@@ -297,10 +304,12 @@
       s.fireIn -= dt;
       if (s.fireIn <= 0 && !s.overheated) {
         fireAtEnemy(440, s.upgrade.shotDamage);
-        s.heat = Math.min(100, s.heat + 10);
+        s.heat = Math.min(100, s.heat + 10 + (s.upgrade.shotDamage - 2) * 3);
+        if (s.heat >= 55 && !s.hotWarning) { s.hotWarning = true; announce("고열 · 이동 속도가 느려집니다. 배출 시점을 정하세요.", 1.8); }
         if (s.heat >= 100) { s.overheated = true; announce("과열! 냉각을 기다리거나 열을 배출하세요.", 2); beep(120, 0.14); }
         s.fireIn = 0.46;
       }
+      if (s.heat < 45) s.hotWarning = false;
     } else {
       s.trailIn -= dt;
       if (s.trailIn <= 0 && (x || y)) { s.trail.push({ x: p.x, y: p.y, age: 0 }); s.trailIn = 0.10; }
@@ -437,5 +446,5 @@
     button.addEventListener("pointercancel", () => keys.delete(dir));
     button.addEventListener("lostpointercapture", () => keys.delete(dir));
   }
-  $("touchAction").addEventListener("pointerdown", (event) => { event.preventDefault(); doAbility(); });
+  $("touchAction").addEventListener("click", doAbility);
 })();

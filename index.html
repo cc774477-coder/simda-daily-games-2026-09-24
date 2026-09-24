@@ -7,8 +7,8 @@
   <meta name="description" content="신호 정원, 열핵 배달, 잔상 지도사 웹 게임 프로토타입">
   <title>일일 게임 제작 · 2026.09.24</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2233'/%3E%3Cpath d='M13 45V19h8l11 15 11-15h8v26h-8V31L32 46 21 31v14z' fill='%2366e6d0'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./style.css">
-  <script defer src="./game.js"></script>
+  <link rel="stylesheet" href="./style.css?v=20260925-1">
+  <script defer src="./game.js?v=20260925-1"></script>
 </head>
 <body>
   <div class="shell">
@@ -34,6 +34,7 @@
         <div><span>레벨</span><strong id="levelValue">1</strong></div>
         <div><span>처치</span><strong id="killValue">0</strong></div>
       </div>
+      <p id="liveStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 
       <div class="arena-wrap">
         <canvas id="arena" tabindex="0" aria-label="게임 플레이 화면. 방향키나 WASD로 이동, Space로 능력 사용"></canvas>
